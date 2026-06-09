@@ -3,29 +3,30 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>QR Code Package Scanner - iOS Fixed</title>
+    <title>QR Code Package Scanner - iOS Stable</title>
     <!-- เรียกใช้งาน Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- เรียกใช้งาน Library สแกน QR Code -->
     <script src="https://unpkg.com/html5-qrcode"></script>
     <style>
-        /* บังคับและควบคุมขนาดของกล้องไม่ให้ล้นหน้าจอเด็ดขาดบน iPhone */
+        /* ควบคุมความสูงเฉพาะกรอบนอกสุด (#camera-section) เพื่อไม่ให้เบียดปุ่มตกจอ */
         #camera-section {
             transition: height 0.3s ease-in-out;
-            height: 0px; /* เริ่มต้นพับปิดไว้เพื่อความสวยงาม */
+            height: 0px; /* เริ่มต้นพับปิด */
         }
+        
+        /* ห้ามบังคับความสูงแบบ Fix ที่ตัวกล้องเพื่อป้องกันภาพเบี้ยว ซึ่งจะทำให้อ่านรหัสไม่ได้ */
         #reader {
             width: 100% !important;
+            height: auto !important; /* ปล่อยให้สัดส่วนภาพเป็นธรรมชาติเพื่อให้ iOS สแกนติดง่าย */
             border: none !important;
             background-color: black !important;
-            transition: height 0.3s ease-in-out;
-            height: 0px;
         }
-        /* บังคับให้ตัววิดีโอกล้องมีขนาดพอดีกรอบ ไม่ขยายตัวทะลุจอ */
+        
+        /* ปลดล็อกการบังคับสัดส่วนวิดีโอ เพื่อให้พิกัดสแกนบน iPhone ทำงานได้ถูกต้องแม่นยำ */
         #reader video {
             width: 100% !important;
-            height: 100% !important;
-            object-fit: cover !important;
+            height: auto !important;
         }
     </style>
 </head>
@@ -44,7 +45,7 @@
         </div>
     </header>
 
-    <!-- 2. แถบควบคุม (ย้ายขึ้นมาไว้ด้านบนสุด เพื่อป้องกันปุ่มตกขอบล่างของหน้าจอ) -->
+    <!-- 2. แถบควบคุม (อยู่ด้านบนสุดใต้ Header การันตีปุ่มไม่ตกขอบจอแน่นอน) -->
     <div class="bg-white px-3 py-2.5 border-b flex justify-between items-center gap-2 flex-shrink-0 shadow-sm z-20">
         <div class="flex gap-1.5">
             <button id="btn-start" onclick="startScanner()" class="bg-green-600 hover:bg-green-700 text-white font-semibold py-2.5 px-3.5 rounded-lg text-xs transition-colors shadow">
@@ -67,7 +68,7 @@
         </div>
     </div>
 
-    <!-- 3. หน้าจอกล้องสแกน (สไลด์ยืด-หดอยู่ใต้แถบปุ่มกดพอดี) -->
+    <!-- 3. หน้าจอกล้องสแกน (ใช้การพับเก็บที่กรอบนอกสีดำ ส่วนตัวกล้องภายในรันสัดส่วนปกติ) -->
     <div id="camera-section" class="w-full bg-black flex-shrink-0 relative overflow-hidden z-10">
         <!-- ตัวแสดงกล้อง -->
         <div id="reader"></div>
@@ -79,7 +80,7 @@
         </div>
     </div>
 
-    <!-- 4. ส่วนแสดงรายงานและประวัติพัสดุ (จะแสดงเต็มจอทันทีเมื่อปิดกล้อง) -->
+    <!-- 4. ส่วนแสดงรายงานและประวัติพัสดุ (จะยืดแสดงผลเต็มจอทันทีเมื่อปิดกล้อง) -->
     <div class="flex-1 flex flex-col min-h-0 bg-gray-50">
         <!-- แสดงข้อความสถานะล่าสุด -->
         <div id="status-message" class="mx-4 mt-3 text-center text-xs font-semibold py-2 px-3 rounded-lg hidden flex-shrink-0"></div>
@@ -99,6 +100,7 @@
         let html5QrCode = null;
         let lastScannedText = "";
         let scanCooldown = false;
+        let audioCtx = null;
 
         window.onload = function() {
             const savedData = localStorage.getItem("scanned_trackings");
@@ -108,13 +110,23 @@
             }
         };
 
+        // ฟังก์ชันปลดล็อกระบบเสียงสำหรับ iOS (ต้องทำงานเมื่อผู้ใช้กดปุ่มเปิดกล้อง)
+        function initAudio() {
+            if (!audioCtx) {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            }
+            if (audioCtx && audioCtx.state === 'suspended') {
+                audioCtx.resume();
+            }
+        }
+
         // ฟังก์ชันพูดแจ้งเตือน (Text-to-Speech)
         function speakText(text) {
             if ('speechSynthesis' in window) {
                 window.speechSynthesis.cancel();
                 const utterance = new SpeechSynthesisUtterance(text);
                 utterance.lang = 'th-TH';
-                utterance.rate = 1.25;
+                utterance.rate = 1.3;
                 window.speechSynthesis.speak(utterance);
             }
         }
@@ -122,7 +134,7 @@
         // เสียงบี๊บเตือน
         function playBeep(isDouble = false) {
             try {
-                const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                initAudio(); // ตรวจสอบและปลดล็อกเสียงบน iOS
                 
                 function triggerBeep(timeOffset) {
                     const oscillator = audioCtx.createOscillator();
@@ -146,16 +158,13 @@
             }
         }
 
-        // ฟังก์ชันในการ ยืด/หด หน้าต่างกล้อง (แก้ปัญหาการคลาดเคลื่อนความสูงบน iOS)
+        // ฟังก์ชันในการ ยืด/หด หน้าต่างกล้องโดยควบคุมเฉพาะกล่องหุ้มด้านนอก
         function toggleCameraUI(show) {
             const cameraSection = document.getElementById("camera-section");
-            const reader = document.getElementById("reader");
             if (show) {
-                cameraSection.style.height = "250px";
-                reader.style.height = "250px";
+                cameraSection.style.height = "250px"; // บังคับกรอบนอกให้สูงคงที่ 250px
             } else {
-                cameraSection.style.height = "0px";
-                reader.style.height = "0px";
+                cameraSection.style.height = "0px"; // พับเก็บกรอบนอก
             }
         }
 
@@ -163,25 +172,26 @@
         function startScanner() {
             if (html5QrCode && html5QrCode.isScanning) return;
 
+            initAudio(); // ปลดล็อก AudioContext ทันทีที่ผู้ใช้คลิกเปิดกล้องเพื่อให้ส่งเสียงได้สำเร็จบน iOS
+
             document.getElementById("btn-start").disabled = true;
             document.getElementById("btn-stop").disabled = false;
             document.getElementById("camera-status").textContent = "กำลังเปิด...";
             document.getElementById("camera-dot").className = "w-2.5 h-2.5 rounded-full bg-yellow-500 animate-pulse";
 
-            // 1. สั่งยืดหน้าต่างสแกนลงมา (คงความสูงไว้ที่ 250px)
+            // 1. สั่งยืดหน้าต่างกรอบนอกลงมาเพื่อเตรียมแสดงผลกล้อง
             toggleCameraUI(true);
 
-            // 2. รอระบบจัดการพื้นที่เสร็จสิ้น (300ms) แล้วจึงเปิดใช้งานกล้องสแกน
+            // 2. หน่วงเวลาเล็กน้อย (300ms) ให้หน้าต่างขยายเสร็จสิ้น จากนั้นเปิดกล้องสแกน
             setTimeout(() => {
                 html5QrCode = new Html5Qrcode("reader");
                 
                 const config = { 
                     fps: 15, 
                     qrbox: function(width, height) {
-                        // ปรับขนาดโฟกัสกว้าง 90% สูง 65% ของกรอบ ให้รองรับบาร์โค้ดยาวและคิวอาร์โค้ด
-                        const qrWidth = Math.floor(width * 0.90);
-                        const qrHeight = Math.floor(height * 0.65);
-                        return { width: qrWidth, height: qrHeight };
+                        // ปรับกรอบโฟกัสสแกนเป็นสี่เหลี่ยมจัตุรัสขนาด 70% ของด้านที่แคบที่สุด เพื่อเสถียรภาพสูงสุดในการสแกนของ iOS
+                        const size = Math.floor(Math.min(width, height) * 0.70);
+                        return { width: size, height: size };
                     }
                 };
 
@@ -260,7 +270,7 @@
         }
 
         function onScanFailure(error) {
-            // ปล่อยว่างเพื่อตรวจจับเฟรมถัดไป
+            // ปล่อยว่างเพื่อรอตรวจจับเฟรมถัดไป
         }
 
         // กะพริบสีหน้าจอชั่วขณะ
