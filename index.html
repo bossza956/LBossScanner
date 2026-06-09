@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>QR Code Package Scanner - Split Screen</title>
+    <title>QR Code Package Scanner - Auto Collapse</title>
     <!-- เรียกใช้งาน Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- เรียกใช้งาน Library สแกน QR Code -->
@@ -12,7 +12,7 @@
 <body class="bg-gray-100 h-screen w-screen flex flex-col font-sans overflow-hidden transition-colors duration-150" id="body-container">
 
     <!-- Header (ส่วนหัว) -->
-    <header class="bg-blue-600 text-white py-3 px-4 shadow flex justify-between items-center flex-shrink-0">
+    <header class="bg-blue-600 text-white py-3 px-4 shadow flex justify-between items-center flex-shrink-0 z-10">
         <div>
             <h1 class="text-lg font-bold">เช็คพัสดุ</h1>
             <p class="text-xxs text-blue-100">ตรวจสอบก่อนจัดส่ง</p>
@@ -24,42 +24,42 @@
         </div>
     </header>
 
-    <!-- ครึ่งบน: ส่วนของกล้องสแกน -->
-    <div class="w-full bg-black flex-shrink-0 relative" style="height: 40vh; min-height: 200px;">
+    <!-- หน้าจอกล้องสแกน (เพิ่ม transition-all เพื่อให้สไลด์พับเก็บแบบนุ่มนวล โดยเริ่มต้นปิดพับไว้ที่ h-0) -->
+    <div id="camera-section" class="w-full bg-black flex-shrink-0 relative transition-all duration-300 ease-in-out h-0 overflow-hidden">
         <!-- ตัวแสดงกล้อง -->
         <div id="reader" class="w-full h-full"></div>
         
         <!-- แถบแจ้งสถานะกล้องลอยทับบนกล้อง -->
-        <div class="absolute top-2 left-2 bg-black/60 text-white text-xs px-2.5 py-1 rounded-full flex items-center gap-1.5 backdrop-blur-sm">
+        <div class="absolute top-2 left-2 bg-black/60 text-white text-xs px-2.5 py-1 rounded-full flex items-center gap-1.5 backdrop-blur-sm z-20">
             <span id="camera-dot" class="w-2.5 h-2.5 rounded-full bg-red-500"></span>
             <span id="camera-status">ปิดอยู่</span>
         </div>
     </div>
 
     <!-- แถบควบคุมตรงกลาง (ปุ่มการทำงานต่าง ๆ ปรับปุ่มให้กระชับพอดีสำหรับจอมือถือ) -->
-    <div class="bg-white px-3 py-2 border-b flex justify-between items-center gap-2 flex-shrink-0 shadow-sm">
+    <div class="bg-white px-3 py-2 border-b flex justify-between items-center gap-2 flex-shrink-0 shadow-sm z-10">
         <div class="flex gap-1.5">
-            <button id="btn-start" onclick="startScanner()" class="bg-green-600 hover:bg-green-700 text-white font-semibold py-2 px-3 rounded-lg text-xs transition-colors shadow">
-                เปิดกล้อง
+            <button id="btn-start" onclick="startScanner()" class="bg-green-600 hover:bg-green-700 text-white font-semibold py-2.5 px-4 rounded-lg text-xs transition-colors shadow">
+                เปิดกล้องสแกน
             </button>
-            <button id="btn-stop" onclick="stopScanner()" class="bg-red-500 hover:bg-red-600 text-white font-semibold py-2 px-3 rounded-lg text-xs transition-colors shadow" disabled>
-                ปิดกล้อง
+            <button id="btn-stop" onclick="stopScanner()" class="bg-red-500 hover:bg-red-600 text-white font-semibold py-2.5 px-3 rounded-lg text-xs transition-colors shadow" disabled>
+                ปิดกล้อง / ดูรายงานเต็มจอ
             </button>
         </div>
         <div class="flex gap-1">
-            <button onclick="copyToClipboard()" class="bg-gray-800 hover:bg-gray-900 text-white text-xs font-semibold py-2 px-2 rounded-md shadow">
+            <button onclick="copyToClipboard()" class="bg-gray-800 hover:bg-gray-900 text-white text-xs font-semibold py-2.5 px-2.5 rounded-md shadow">
                 คัดลอก
             </button>
-            <button onclick="exportToExcel()" class="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold py-2 px-2 rounded-md shadow flex items-center gap-0.5">
+            <button onclick="exportToExcel()" class="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold py-2.5 px-2.5 rounded-md shadow flex items-center gap-0.5">
                 ออก Excel
             </button>
-            <button onclick="clearHistory()" class="bg-gray-100 hover:bg-gray-200 text-red-600 border border-gray-200 text-xs font-semibold py-2 px-2 rounded-md">
+            <button onclick="clearHistory()" class="bg-gray-100 hover:bg-gray-200 text-red-600 border border-gray-200 text-xs font-semibold py-2.5 px-2 rounded-md">
                 ล้างข้อมูล
             </button>
         </div>
     </div>
 
-    <!-- ครึ่งล่าง: แสดงรหัสสแกนล่าสุดและการแจ้งเตือน -->
+    <!-- ครึ่งล่าง: แสดงรหัสสแกนล่าสุดและการแจ้งเตือน (จะขยายตัวเต็มที่โดยอัตโนมัติเมื่อพับกล้อง) -->
     <div class="flex-1 flex flex-col min-h-0 bg-gray-50">
         <!-- แสดงข้อความสถานะล่าสุด -->
         <div id="status-message" class="mx-4 mt-3 text-center text-xs font-semibold py-2 px-3 rounded-lg hidden flex-shrink-0"></div>
@@ -69,7 +69,7 @@
             <h2 class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">ประวัติการสแกน (รายการล่าสุดจะอยู่บนสุด)</h2>
             <div id="scan-list" class="space-y-2">
                 <!-- รายการจะเพิ่มเข้ามาจาก JS -->
-                <p id="empty-state" class="text-sm text-gray-400 text-center py-10">ยังไม่มีข้อมูล โปรดกดปุ่ม "เปิดกล้อง" และเริ่มสแกน</p>
+                <p id="empty-state" class="text-sm text-gray-400 text-center py-10">ยังไม่มีข้อมูล โปรดกดปุ่ม "เปิดกล้องสแกน" เพื่อเริ่มต้น</p>
             </div>
         </div>
     </div>
@@ -126,6 +126,18 @@
             }
         }
 
+        // ฟังก์ชันในการ ยืด/หด หน้าต่างกล้อง
+        function toggleCameraUI(show) {
+            const cameraSection = document.getElementById("camera-section");
+            if (show) {
+                cameraSection.classList.remove("h-0");
+                cameraSection.classList.add("h-[40vh]", "min-h-[200px]");
+            } else {
+                cameraSection.classList.remove("h-[40vh]", "min-h-[200px]");
+                cameraSection.classList.add("h-0");
+            }
+        }
+
         // เริ่มเปิดกล้อง
         function startScanner() {
             if (html5QrCode && html5QrCode.isScanning) return;
@@ -135,31 +147,35 @@
             document.getElementById("camera-status").textContent = "กำลังเปิด...";
             document.getElementById("camera-dot").className = "w-2.5 h-2.5 rounded-full bg-yellow-500 animate-pulse";
 
-            html5QrCode = new Html5Qrcode("reader");
-            
-            const config = { 
-                fps: 15, 
-                qrbox: function(width, height) {
-                    // ปรับขนาดพื้นที่สแกนให้ใหญ่ขึ้นมาก (กว้าง 90% และสูง 65% ของพื้นที่สแกน)
-                    // เพื่อให้รับภาพแนวยาวของบาร์โค้ดได้ดีขึ้น และโฟกัสได้ง่ายขึ้น
-                    const qrWidth = Math.floor(width * 0.90);
-                    const qrHeight = Math.floor(height * 0.65);
-                    return { width: qrWidth, height: qrHeight };
-                }
-            };
+            // 1. สั่งสไลด์ยืดพื้นที่กล้องลงมาก่อน
+            toggleCameraUI(true);
 
-            html5QrCode.start(
-                { facingMode: "environment" }, 
-                config, 
-                onScanSuccess,
-                onScanFailure
-            ).then(() => {
-                document.getElementById("camera-status").textContent = "พร้อมใช้งาน";
-                document.getElementById("camera-dot").className = "w-2.5 h-2.5 rounded-full bg-green-500 animate-ping";
-            }).catch(err => {
-                showStatusMessage("ไม่สามารถเปิดกล้องได้: โปรดตรวจสอบสิทธิ์กล้องหรือเปิดผ่านลิงก์ HTTPS", false);
-                stopScanner();
-            });
+            // 2. หน่วงเวลาเล็กน้อย (300ms) ให้หน้าต่างสไลด์เสร็จสิ้น แล้วค่อยเริ่มการทำงานของกล้อง
+            setTimeout(() => {
+                html5QrCode = new Html5Qrcode("reader");
+                
+                const config = { 
+                    fps: 15, 
+                    qrbox: function(width, height) {
+                        const qrWidth = Math.floor(width * 0.90);
+                        const qrHeight = Math.floor(height * 0.65);
+                        return { width: qrWidth, height: qrHeight };
+                    }
+                };
+
+                html5QrCode.start(
+                    { facingMode: "environment" }, 
+                    config, 
+                    onScanSuccess,
+                    onScanFailure
+                ).then(() => {
+                    document.getElementById("camera-status").textContent = "พร้อมใช้งาน";
+                    document.getElementById("camera-dot").className = "w-2.5 h-2.5 rounded-full bg-green-500 animate-ping";
+                }).catch(err => {
+                    showStatusMessage("ไม่สามารถเปิดกล้องได้: โปรดตรวจสอบสิทธิ์กล้องหรือเปิดผ่านลิงก์ HTTPS", false);
+                    stopScanner();
+                });
+            }, 300);
         }
 
         // ปิดกล้อง
@@ -172,12 +188,17 @@
                     document.getElementById("camera-status").textContent = "ปิดอยู่";
                     document.getElementById("camera-dot").className = "w-2.5 h-2.5 rounded-full bg-red-500";
                     html5QrCode = null;
+                    
+                    // สั่งพับเก็บพื้นที่กล้องกลับไปทันทีที่ปิดกล้องสำเร็จ
+                    toggleCameraUI(false);
                 }).catch(err => {
                     console.error(err);
+                    toggleCameraUI(false); // ป้องกันกรณีค้าง ให้พับเก็บเลย
                 });
             } else {
                 document.getElementById("camera-status").textContent = "ปิดอยู่";
                 document.getElementById("camera-dot").className = "w-2.5 h-2.5 rounded-full bg-red-500";
+                toggleCameraUI(false);
             }
         }
 
@@ -311,7 +332,6 @@
             csvContent += "ลำดับ,รหัสพัสดุ (Tracking),เวลาที่สแกน\n";
 
             // 2. ป้องกัน Excel ตัดเลข 0 หน้าชื่อ หรือแปลงเป็นสัญลักษณ์วิทยาศาสตร์ (เช่น 1.23+E11)
-            // โดยการครอบรหัสด้วยโครงสร้างสูตรของ Excel : ="ค่าพัสดุ"
             scannedItems.forEach((item, index) => {
                 const order = scannedItems.length - index;
                 csvContent += `"${order}","=""${item.code}""","${item.time}"\n`;
