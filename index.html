@@ -3,75 +3,31 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>QR Code Package Scanner - iOS Stable</title>
+    <title>QR Code Package Scanner - Auto Collapse</title>
     <!-- เรียกใช้งาน Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- เรียกใช้งาน Library สแกน QR Code -->
     <script src="https://unpkg.com/html5-qrcode"></script>
-    <style>
-        /* ควบคุมความสูงเฉพาะกรอบนอกสุด (#camera-section) เพื่อไม่ให้เบียดปุ่มตกจอ */
-        #camera-section {
-            transition: height 0.3s ease-in-out;
-            height: 0px; /* เริ่มต้นพับปิด */
-        }
-        
-        /* ห้ามบังคับความสูงแบบ Fix ที่ตัวกล้องเพื่อป้องกันภาพเบี้ยว ซึ่งจะทำให้อ่านรหัสไม่ได้ */
-        #reader {
-            width: 100% !important;
-            height: auto !important; /* ปล่อยให้สัดส่วนภาพเป็นธรรมชาติเพื่อให้ iOS สแกนติดง่าย */
-            border: none !important;
-            background-color: black !important;
-        }
-        
-        /* ปลดล็อกการบังคับสัดส่วนวิดีโอ เพื่อให้พิกัดสแกนบน iPhone ทำงานได้ถูกต้องแม่นยำ */
-        #reader video {
-            width: 100% !important;
-            height: auto !important;
-        }
-    </style>
 </head>
 <body class="bg-gray-100 h-screen w-screen flex flex-col font-sans overflow-hidden transition-colors duration-150" id="body-container">
 
-    <!-- 1. Header (ส่วนหัว) -->
-    <header class="bg-blue-600 text-white py-3 px-4 shadow flex justify-between items-center flex-shrink-0 z-20">
+    <!-- Header (ส่วนหัว) -->
+    <header class="bg-blue-600 text-white py-3 px-4 shadow flex justify-between items-center flex-shrink-0 z-10">
         <div>
             <h1 class="text-lg font-bold">เช็คพัสดุ</h1>
             <p class="text-xxs text-blue-100">ตรวจสอบก่อนจัดส่ง</p>
         </div>
-        <!-- ตัวนับจำนวน -->
+        <!-- ตัวนับจำนวน แสดงขนาดใหญ่เห็นชัดที่มุมขวาบน -->
         <div class="text-right">
             <div class="text-xxs text-blue-200 uppercase">สแกนแล้ว</div>
             <div class="text-2xl font-black"><span id="scan-count">0</span> รายการ</div>
         </div>
     </header>
 
-    <!-- 2. แถบควบคุม (อยู่ด้านบนสุดใต้ Header การันตีปุ่มไม่ตกขอบจอแน่นอน) -->
-    <div class="bg-white px-3 py-2.5 border-b flex justify-between items-center gap-2 flex-shrink-0 shadow-sm z-20">
-        <div class="flex gap-1.5">
-            <button id="btn-start" onclick="startScanner()" class="bg-green-600 hover:bg-green-700 text-white font-semibold py-2.5 px-3.5 rounded-lg text-xs transition-colors shadow">
-                เปิดกล้องสแกน
-            </button>
-            <button id="btn-stop" onclick="stopScanner()" class="bg-red-500 hover:bg-red-600 text-white font-semibold py-2.5 px-2.5 rounded-lg text-xs transition-colors shadow" disabled>
-                ปิดกล้อง / พับจอ
-            </button>
-        </div>
-        <div class="flex gap-1">
-            <button onclick="copyToClipboard()" class="bg-gray-800 hover:bg-gray-900 text-white text-xs font-semibold py-2.5 px-2.5 rounded-md shadow">
-                คัดลอก
-            </button>
-            <button onclick="exportToExcel()" class="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold py-2.5 px-2 rounded-md shadow flex items-center gap-0.5">
-                ออก Excel
-            </button>
-            <button onclick="clearHistory()" class="bg-gray-100 hover:bg-gray-200 text-red-600 border border-gray-200 text-xs font-semibold py-2.5 px-2 rounded-md">
-                ล้างข้อมูล
-            </button>
-        </div>
-    </div>
-
-    <!-- 3. หน้าจอกล้องสแกน (ใช้การพับเก็บที่กรอบนอกสีดำ ส่วนตัวกล้องภายในรันสัดส่วนปกติ) -->
-    <div id="camera-section" class="w-full bg-black flex-shrink-0 relative overflow-hidden z-10">
+    <!-- หน้าจอกล้องสแกน (เพิ่ม transition-all เพื่อให้สไลด์พับเก็บแบบนุ่มนวล โดยเริ่มต้นปิดพับไว้ที่ h-0) -->
+    <div id="camera-section" class="w-full bg-black flex-shrink-0 relative transition-all duration-300 ease-in-out h-0 overflow-hidden">
         <!-- ตัวแสดงกล้อง -->
-        <div id="reader"></div>
+        <div id="reader" class="w-full h-full"></div>
         
         <!-- แถบแจ้งสถานะกล้องลอยทับบนกล้อง -->
         <div class="absolute top-2 left-2 bg-black/60 text-white text-xs px-2.5 py-1 rounded-full flex items-center gap-1.5 backdrop-blur-sm z-20">
@@ -80,7 +36,30 @@
         </div>
     </div>
 
-    <!-- 4. ส่วนแสดงรายงานและประวัติพัสดุ (จะยืดแสดงผลเต็มจอทันทีเมื่อปิดกล้อง) -->
+    <!-- แถบควบคุมตรงกลาง (ปุ่มการทำงานต่าง ๆ ปรับปุ่มให้กระชับพอดีสำหรับจอมือถือ) -->
+    <div class="bg-white px-3 py-2 border-b flex justify-between items-center gap-2 flex-shrink-0 shadow-sm z-10">
+        <div class="flex gap-1.5">
+            <button id="btn-start" onclick="startScanner()" class="bg-green-600 hover:bg-green-700 text-white font-semibold py-2.5 px-4 rounded-lg text-xs transition-colors shadow">
+                เปิดกล้องสแกน
+            </button>
+            <button id="btn-stop" onclick="stopScanner()" class="bg-red-500 hover:bg-red-600 text-white font-semibold py-2.5 px-3 rounded-lg text-xs transition-colors shadow" disabled>
+                ปิดกล้อง / ดูรายงานเต็มจอ
+            </button>
+        </div>
+        <div class="flex gap-1">
+            <button onclick="copyToClipboard()" class="bg-gray-800 hover:bg-gray-900 text-white text-xs font-semibold py-2.5 px-2.5 rounded-md shadow">
+                คัดลอก
+            </button>
+            <button onclick="exportToExcel()" class="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold py-2.5 px-2.5 rounded-md shadow flex items-center gap-0.5">
+                ออก Excel
+            </button>
+            <button onclick="clearHistory()" class="bg-gray-100 hover:bg-gray-200 text-red-600 border border-gray-200 text-xs font-semibold py-2.5 px-2 rounded-md">
+                ล้างข้อมูล
+            </button>
+        </div>
+    </div>
+
+    <!-- ครึ่งล่าง: แสดงรหัสสแกนล่าสุดและการแจ้งเตือน (จะขยายตัวเต็มที่โดยอัตโนมัติเมื่อพับกล้อง) -->
     <div class="flex-1 flex flex-col min-h-0 bg-gray-50">
         <!-- แสดงข้อความสถานะล่าสุด -->
         <div id="status-message" class="mx-4 mt-3 text-center text-xs font-semibold py-2 px-3 rounded-lg hidden flex-shrink-0"></div>
@@ -100,7 +79,6 @@
         let html5QrCode = null;
         let lastScannedText = "";
         let scanCooldown = false;
-        let audioCtx = null;
 
         window.onload = function() {
             const savedData = localStorage.getItem("scanned_trackings");
@@ -110,23 +88,13 @@
             }
         };
 
-        // ฟังก์ชันปลดล็อกระบบเสียงสำหรับ iOS (ต้องทำงานเมื่อผู้ใช้กดปุ่มเปิดกล้อง)
-        function initAudio() {
-            if (!audioCtx) {
-                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-            }
-            if (audioCtx && audioCtx.state === 'suspended') {
-                audioCtx.resume();
-            }
-        }
-
         // ฟังก์ชันพูดแจ้งเตือน (Text-to-Speech)
         function speakText(text) {
             if ('speechSynthesis' in window) {
-                window.speechSynthesis.cancel();
+                window.speechSynthesis.cancel(); // ล้างคำพูดเก่าทันทีเพื่อให้เสียงไม่ทับกัน
                 const utterance = new SpeechSynthesisUtterance(text);
-                utterance.lang = 'th-TH';
-                utterance.rate = 1.3;
+                utterance.lang = 'th-TH'; // ภาษาไทย
+                utterance.rate = 1.25; // ความเร็วในการพูดเตือน
                 window.speechSynthesis.speak(utterance);
             }
         }
@@ -134,14 +102,14 @@
         // เสียงบี๊บเตือน
         function playBeep(isDouble = false) {
             try {
-                initAudio(); // ตรวจสอบและปลดล็อกเสียงบน iOS
+                const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
                 
                 function triggerBeep(timeOffset) {
                     const oscillator = audioCtx.createOscillator();
                     const gainNode = audioCtx.createGain();
                     oscillator.connect(gainNode);
                     gainNode.connect(audioCtx.destination);
-                    oscillator.frequency.value = isDouble ? 500 : 1000;
+                    oscillator.frequency.value = isDouble ? 500 : 1000; // เสียงบี๊บปกติโทนสูง เสียงเตือนซ้ำโทนต่ำ
                     oscillator.type = 'sine';
                     gainNode.gain.setValueAtTime(0.5, audioCtx.currentTime + timeOffset);
                     gainNode.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + timeOffset + 0.1);
@@ -151,20 +119,22 @@
 
                 triggerBeep(0);
                 if (isDouble) {
-                    triggerBeep(0.12);
+                    triggerBeep(0.12); // บี๊บสองทีเมื่อสแกนซ้ำ
                 }
             } catch (e) {
                 console.log(e);
             }
         }
 
-        // ฟังก์ชันในการ ยืด/หด หน้าต่างกล้องโดยควบคุมเฉพาะกล่องหุ้มด้านนอก
+        // ฟังก์ชันในการ ยืด/หด หน้าต่างกล้อง
         function toggleCameraUI(show) {
             const cameraSection = document.getElementById("camera-section");
             if (show) {
-                cameraSection.style.height = "250px"; // บังคับกรอบนอกให้สูงคงที่ 250px
+                cameraSection.classList.remove("h-0");
+                cameraSection.classList.add("h-[40vh]", "min-h-[200px]");
             } else {
-                cameraSection.style.height = "0px"; // พับเก็บกรอบนอก
+                cameraSection.classList.remove("h-[40vh]", "min-h-[200px]");
+                cameraSection.classList.add("h-0");
             }
         }
 
@@ -172,26 +142,24 @@
         function startScanner() {
             if (html5QrCode && html5QrCode.isScanning) return;
 
-            initAudio(); // ปลดล็อก AudioContext ทันทีที่ผู้ใช้คลิกเปิดกล้องเพื่อให้ส่งเสียงได้สำเร็จบน iOS
-
             document.getElementById("btn-start").disabled = true;
             document.getElementById("btn-stop").disabled = false;
             document.getElementById("camera-status").textContent = "กำลังเปิด...";
             document.getElementById("camera-dot").className = "w-2.5 h-2.5 rounded-full bg-yellow-500 animate-pulse";
 
-            // 1. สั่งยืดหน้าต่างกรอบนอกลงมาเพื่อเตรียมแสดงผลกล้อง
+            // 1. สั่งสไลด์ยืดพื้นที่กล้องลงมาก่อน
             toggleCameraUI(true);
 
-            // 2. หน่วงเวลาเล็กน้อย (300ms) ให้หน้าต่างขยายเสร็จสิ้น จากนั้นเปิดกล้องสแกน
+            // 2. หน่วงเวลาเล็กน้อย (300ms) ให้หน้าต่างสไลด์เสร็จสิ้น แล้วค่อยเริ่มการทำงานของกล้อง
             setTimeout(() => {
                 html5QrCode = new Html5Qrcode("reader");
                 
                 const config = { 
                     fps: 15, 
                     qrbox: function(width, height) {
-                        // ปรับกรอบโฟกัสสแกนเป็นสี่เหลี่ยมจัตุรัสขนาด 70% ของด้านที่แคบที่สุด เพื่อเสถียรภาพสูงสุดในการสแกนของ iOS
-                        const size = Math.floor(Math.min(width, height) * 0.70);
-                        return { width: size, height: size };
+                        const qrWidth = Math.floor(width * 0.90);
+                        const qrHeight = Math.floor(height * 0.65);
+                        return { width: qrWidth, height: qrHeight };
                     }
                 };
 
@@ -210,7 +178,7 @@
             }, 300);
         }
 
-        // ปิดกล้องสแกน
+        // ปิดกล้อง
         function stopScanner() {
             document.getElementById("btn-start").disabled = false;
             document.getElementById("btn-stop").disabled = true;
@@ -221,11 +189,11 @@
                     document.getElementById("camera-dot").className = "w-2.5 h-2.5 rounded-full bg-red-500";
                     html5QrCode = null;
                     
-                    // พับเก็บหน้าจอกล้องกลับคืนเพื่อให้รายงานแสดงผลเต็มจอ
+                    // สั่งพับเก็บพื้นที่กล้องกลับไปทันทีที่ปิดกล้องสำเร็จ
                     toggleCameraUI(false);
                 }).catch(err => {
                     console.error(err);
-                    toggleCameraUI(false);
+                    toggleCameraUI(false); // ป้องกันกรณีค้าง ให้พับเก็บเลย
                 });
             } else {
                 document.getElementById("camera-status").textContent = "ปิดอยู่";
@@ -236,6 +204,7 @@
 
         // ตรวจพบ QR Code/Barcode
         function onScanSuccess(decodedText, decodedResult) {
+            // ป้องกันการสแกนใบเดิมซ้ำติดต่อกันเร็วเกินไป (หน่วง 2 วินาที)
             if (scanCooldown && decodedText === lastScannedText) {
                 return;
             }
@@ -244,16 +213,18 @@
             scanCooldown = true;
             setTimeout(() => { scanCooldown = false; }, 2000);
 
+            // ตรวจสอบข้อมูลซ้ำในระบบ
             const isDuplicate = scannedItems.some(item => item.code === decodedText);
 
             if (isDuplicate) {
-                playBeep(true);
+                playBeep(true); // เสียงบี๊บเตือนซ้ำโทนต่ำสองครั้ง
                 flashScreen("bg-red-200");
                 showStatusMessage("ซ้ำ! เคยสแกนแล้ว: " + decodedText, false);
-                speakText("ซ้ำ");
+                speakText("ซ้ำ"); // ส่งเสียงพูดเฉพาะคำว่า "ซ้ำ"
                 return;
             }
 
+            // บันทึกรายการใหม่
             const now = new Date();
             const timeString = now.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
             
@@ -263,14 +234,14 @@
             });
 
             saveData();
-            playBeep(false);
-            flashScreen("bg-green-200");
+            playBeep(false); // เสียงบี๊บปกติแบบสั้นโทนสูง
+            flashScreen("bg-green-200"); // กะพริบจอสีเขียวอ่อน
             updateUI();
             showStatusMessage("สำเร็จ: " + decodedText, true);
         }
 
         function onScanFailure(error) {
-            // ปล่อยว่างเพื่อรอตรวจจับเฟรมถัดไป
+            // ปล่อยว่างเพื่อรอรับข้อมูลภาพเฟรมถัดไป
         }
 
         // กะพริบสีหน้าจอชั่วขณะ
@@ -356,18 +327,22 @@
                 return;
             }
 
+            // 1. เพิ่มเครื่องหมายพิเศษ BOM เพื่อให้เปิดโปรแกรม Excel แล้วอ่านภาษาไทยได้ถูกต้อง 100%
             let csvContent = "\uFEFF"; 
             csvContent += "ลำดับ,รหัสพัสดุ (Tracking),เวลาที่สแกน\n";
 
+            // 2. ป้องกัน Excel ตัดเลข 0 หน้าชื่อ หรือแปลงเป็นสัญลักษณ์วิทยาศาสตร์ (เช่น 1.23+E11)
             scannedItems.forEach((item, index) => {
                 const order = scannedItems.length - index;
                 csvContent += `"${order}","=""${item.code}""","${item.time}"\n`;
             });
 
+            // 3. สร้างไฟล์ดาวน์โหลดลงในเครื่องคอมพิวเตอร์หรือโทรศัพท์มือถือ
             const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
             const link = document.createElement("a");
             const url = URL.createObjectURL(blob);
             
+            // ตั้งชื่อไฟล์ตามวันที่ปัจจุบัน
             const now = new Date();
             const year = now.getFullYear();
             const month = String(now.getMonth() + 1).padStart(2, '0');
