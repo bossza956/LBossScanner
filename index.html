@@ -169,7 +169,10 @@
 
         <!-- รายการประวัติที่สแกนแล้ว -->
         <div id="scan-list-container" class="flex-1 overflow-y-auto px-4 py-2.5">
-            <h2 class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">ประวัติการสแกน (ล่าสุดอยู่บนสุด)</h2>
+            <h2 class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2 flex justify-between items-center">
+                <span>ประวัติการสแกน (ล่าสุดอยู่บนสุด)</span>
+                <span id="debug-info" class="text-[9px] font-mono text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded border"></span>
+            </h2>
             <div id="scan-list" class="space-y-2 pb-4">
                 <p id="empty-state" class="text-sm text-gray-400 text-center py-10">ยังไม่มีข้อมูล โปรดเปิดกล้องสแกน</p>
             </div>
@@ -177,6 +180,15 @@
     </div>
 
     <script>
+        // ดักจับ Error ทั้งหมดแล้วแสดงบนหน้าจอเพื่อการตรวจสอบ (Diagnostic Console)
+        window.addEventListener('error', function(e) {
+            const errorDiv = document.createElement('div');
+            errorDiv.className = 'fixed bottom-4 left-4 right-4 bg-red-600 text-white p-3.5 rounded-2xl text-xs z-50 shadow-2xl font-mono break-all border border-red-500/50 flex flex-col gap-1';
+            errorDiv.innerHTML = `<div>⚠️ <b>ตรวจพบข้อผิดพลาด:</b> ${e.message}</div><div class="text-[10px] opacity-80">${e.filename}:${e.lineno}:${e.colno}</div>`;
+            document.body.appendChild(errorDiv);
+            console.error(e);
+        });
+
         let scannedItems = [];
         let html5QrCode = null;
         let lastScannedText = "";
@@ -186,11 +198,19 @@
         let activeScanBox = { width: 0, height: 0 };
 
         window.onload = function() {
-            const savedData = localStorage.getItem("scanned_trackings");
-            if (savedData) {
-                scannedItems = JSON.parse(savedData);
-                updateUI();
+            try {
+                const savedData = localStorage.getItem("scanned_trackings");
+                if (savedData) {
+                    const parsed = JSON.parse(savedData);
+                    if (Array.isArray(parsed)) {
+                        scannedItems = parsed.filter(item => item && typeof item === 'object' && item.code);
+                    }
+                }
+            } catch (e) {
+                console.error("Error loading localStorage:", e);
+                scannedItems = [];
             }
+            updateUI();
         };
 
         // ปลดล็อกระบบเสียงสำหรับ iOS
@@ -382,6 +402,9 @@
 
         // ตรวจพบ QR Code/Barcode
         function onScanSuccess(decodedText, decodedResult) {
+            decodedText = (decodedText || "").trim();
+            if (!decodedText) return;
+
             if (scanCooldown && decodedText === lastScannedText) {
                 return;
             }
@@ -390,7 +413,7 @@
             scanCooldown = true;
             setTimeout(() => { scanCooldown = false; }, 2000);
 
-            const isDuplicate = scannedItems.some(item => item.code === decodedText);
+            const isDuplicate = scannedItems.some(item => item && item.code === decodedText);
 
             if (isDuplicate) {
                 playBeep(true);
@@ -456,6 +479,13 @@
             const listEl = document.getElementById("scan-list");
             const emptyState = document.getElementById("empty-state");
 
+            // อัปเดตข้อมูล Debug ในหน้าจอ
+            const debugEl = document.getElementById("debug-info");
+            if (debugEl) {
+                const codes = scannedItems.map(item => item ? item.code : 'null');
+                debugEl.textContent = `Array: ${scannedItems.length} [${codes.join(', ')}]`;
+            }
+
             if (scannedItems.length === 0) {
                 listEl.innerHTML = "";
                 listEl.appendChild(emptyState);
@@ -467,6 +497,7 @@
             listEl.innerHTML = "";
 
             scannedItems.forEach((item, index) => {
+                if (!item) return;
                 const isLatest = index === 0;
                 const itemDiv = document.createElement("div");
                 itemDiv.className = `flex justify-between items-center p-3 rounded-lg border text-sm shadow-sm transition-all ${
@@ -486,7 +517,8 @@
             });
 
             // เลื่อนตารางประวัติด้านล่างขึ้นมาบนสุด เพื่อให้เห็นรหัสล่าสุด
-            document.getElementById("scan-list-container").scrollTop = 0;
+            const container = document.getElementById("scan-list-container");
+            if (container) container.scrollTop = 0;
         }
 
         function removeItem(index) {
@@ -562,11 +594,17 @@
         }
 
         function saveData() {
-            localStorage.setItem("scanned_trackings", JSON.stringify(scannedItems));
+            try {
+                localStorage.setItem("scanned_trackings", JSON.stringify(scannedItems));
+            } catch (e) {
+                console.error("Failed to save to localStorage:", e);
+                showStatusMessage("แจ้งเตือน: ไม่สามารถบันทึกลงเครื่องได้ (แต่สแกนได้ตามปกติ)", false);
+            }
         }
 
         function showStatusMessage(message, isSuccess) {
             const statusEl = document.getElementById("status-message");
+            if (!statusEl) return;
             statusEl.textContent = message;
             statusEl.classList.remove("hidden");
             
