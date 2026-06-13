@@ -9,82 +9,156 @@
     <!-- เรียกใช้งาน Library สแกน QR Code -->
     <script src="https://unpkg.com/html5-qrcode"></script>
     <style>
-        /* ควบคุมความสูงเฉพาะกรอบนอกสุด (#camera-section) ให้เหลือ 200px เพื่อคืนพื้นที่หน้าจอ */
+        /* ปรับปรุงแอนิเมชันและการควบคุมความสูงกล้องเพื่อความพรีเมียม */
         #camera-section {
-            transition: height 0.3s ease-in-out;
+            transition: height 0.4s cubic-bezier(0.4, 0, 0.2, 1);
             height: 0px; /* เริ่มต้นพับปิด */
         }
         
-        /* ปล่อยสัดส่วนภาพให้เป็นธรรมชาติเพื่อการสแกนที่แม่นยำของ iOS */
         #reader {
             width: 100% !important;
-            height: auto !important; 
+            height: 100% !important; 
             border: none !important;
-            background-color: black !important;
+            background-color: #0b0f19 !important;
+            position: relative !important;
         }
         
+        /* ควบคุมวิดีโอให้ครอบคลุมพื้นที่สแกนเนอร์อย่างสมบูรณ์แบบโดยไม่บิดเบี้ยว */
         #reader video {
             width: 100% !important;
-            height: auto !important;
+            height: 100% !important;
+            object-fit: cover !important;
+        }
+
+        /* ซ่อนแคนวาสทับซ้อนเดิมเพื่อใช้กรอบดีไซน์แบบคัสตอม */
+        #reader canvas {
+            display: none !important;
+        }
+
+        /* ดีไซน์กรอบสแกนคัสตอม (Glassmorphism & Neon Glow) */
+        #custom-scan-box {
+            box-shadow: 0 0 0 9999px rgba(11, 15, 25, 0.7), 0 0 20px rgba(59, 130, 246, 0.5);
+            border: 2px solid rgba(59, 130, 246, 0.8);
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        /* แอนิเมชันเส้นเลเซอร์กวาดสแกน */
+        @keyframes laser-sweep {
+            0% { top: 6%; opacity: 0.4; }
+            50% { top: 94%; opacity: 1; filter: drop-shadow(0 0 4px rgba(59, 130, 246, 0.8)); }
+            100% { top: 6%; opacity: 0.4; }
+        }
+        .animate-laser-sweep {
+            animation: laser-sweep 2.2s ease-in-out infinite;
+        }
+
+        /* เพิ่มการแรเงาขอบแบบแก้วใส (Glassmorphism) */
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.75);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+        }
+
+        .glass-dark {
+            background: rgba(15, 23, 42, 0.65);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
         }
     </style>
 </head>
 <body class="bg-gray-100 h-screen w-screen flex flex-col font-sans overflow-hidden transition-colors duration-150" id="body-container">
 
     <!-- 1. Header (ส่วนหัว) -->
-    <header class="bg-blue-600 text-white py-3 px-4 shadow flex justify-between items-center flex-shrink-0 z-20">
+    <header class="bg-gradient-to-r from-blue-600 via-indigo-600 to-indigo-700 text-white py-3.5 px-4 shadow-lg flex justify-between items-center flex-shrink-0 z-20 relative">
+        <div class="absolute inset-0 bg-white/5 pointer-events-none"></div>
         <div>
-            <h1 class="text-lg font-bold">เช็คพัสดุ</h1>
-            <p class="text-xxs text-blue-100">ตรวจสอบก่อนจัดส่ง</p>
+            <h1 class="text-lg font-black tracking-wide flex items-center gap-1.5">
+                <span class="p-1.5 bg-white/10 rounded-lg shadow-inner">📦</span>
+                เช็คพัสดุ
+            </h1>
+            <p class="text-[10px] text-blue-200 font-medium tracking-wider mt-0.5">ระบบสแกนบาร์โค้ดความเร็วสูง</p>
         </div>
         <!-- ตัวนับจำนวน -->
         <div class="text-right">
-            <div class="text-xxs text-blue-200 uppercase">สแกนแล้ว</div>
-            <div class="text-2xl font-black"><span id="scan-count">0</span> รายการ</div>
+            <div class="text-[10px] text-blue-200 font-bold uppercase tracking-wider">สแกนไปแล้ว</div>
+            <div class="text-2xl font-black text-transparent bg-clip-text bg-gradient-to-r from-white to-blue-200"><span id="scan-count">0</span> รายการ</div>
         </div>
     </header>
 
-    <!-- 2. แถบควบคุม (อยู่ด้านบนสุดใต้ Header การันตีปุ่มไม่ตกขอบจอ) -->
-    <div class="bg-white px-3 py-2 border-b flex justify-between items-center gap-2 flex-shrink-0 shadow-sm z-20">
-        <div class="flex gap-1.5">
-            <button id="btn-start" onclick="startScanner()" class="bg-green-600 hover:bg-green-700 text-white font-semibold py-2 px-3 rounded-lg text-xs transition-colors shadow">
+    <!-- 2. แถบควบคุม (ดีไซน์กระจกโปร่งแสง Glassmorphism) -->
+    <div class="glass-panel px-3 py-2.5 border-b border-gray-200 flex justify-between items-center gap-2 flex-shrink-0 shadow-sm z-20">
+        <div class="flex gap-2">
+            <button id="btn-start" onclick="startScanner()" class="bg-gradient-to-r from-emerald-500 to-green-600 hover:from-emerald-600 hover:to-green-700 text-white font-semibold py-2 px-3.5 rounded-xl text-xs transition-all shadow-md active:scale-95 flex items-center">
+                <svg class="w-4 h-4 mr-1.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
                 เปิดกล้องสแกน
             </button>
-            <button id="btn-stop" onclick="stopScanner()" class="bg-red-500 hover:bg-red-600 text-white font-semibold py-2 px-2.5 rounded-lg text-xs transition-colors shadow" disabled>
+            <button id="btn-stop" onclick="stopScanner()" class="bg-gradient-to-r from-rose-500 to-red-600 hover:from-rose-600 hover:to-red-700 text-white font-semibold py-2 px-3.5 rounded-xl text-xs transition-all shadow-md active:scale-95 flex items-center disabled:opacity-40" disabled>
+                <svg class="w-4 h-4 mr-1.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"></path></svg>
                 ปิดกล้อง / พับจอ
             </button>
         </div>
-        <div class="flex gap-1">
-            <button onclick="copyToClipboard()" class="bg-gray-800 hover:bg-gray-900 text-white text-xs font-semibold py-2 px-2 rounded-md shadow">
+        <div class="flex gap-1.5">
+            <button onclick="copyToClipboard()" class="bg-slate-800 hover:bg-slate-900 text-white text-xs font-semibold py-2 px-2.5 rounded-xl shadow transition-all active:scale-95 flex items-center">
+                <svg class="w-3.5 h-3.5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"></path></svg>
                 คัดลอก
             </button>
-            <button onclick="exportToExcel()" class="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold py-2 px-2 rounded-md shadow flex items-center gap-0.5">
+            <button onclick="exportToExcel()" class="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold py-2 px-2.5 rounded-xl shadow transition-all active:scale-95 flex items-center">
+                <svg class="w-3.5 h-3.5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
                 ออก Excel
             </button>
-            <button onclick="clearHistory()" class="bg-gray-100 hover:bg-gray-200 text-red-600 border border-gray-200 text-xs font-semibold py-2 px-2 rounded-md">
-                ล้างข้อมูล
+            <button onclick="clearHistory()" class="bg-white hover:bg-rose-50 text-rose-600 border border-rose-200 text-xs font-semibold py-2 px-2.5 rounded-xl shadow-sm transition-all active:scale-95 flex items-center">
+                <svg class="w-3.5 h-3.5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                ล้าง
             </button>
         </div>
     </div>
 
-    <!-- 3. [แถบเพิ่มใหม่] แสดงข้อมูลสแกนล่าสุด (อยู่ด้านบนสุดเห็นชัดเจนระหว่างสแกน ไม่ต้องก้มมองล่างจอ) -->
-    <div id="latest-scan-banner" class="bg-blue-50 border-b border-blue-200 px-4 py-2 flex justify-between items-center flex-shrink-0 z-20 transition-all duration-150">
-        <div class="flex items-center gap-1.5">
-            <span class="w-2 h-2 rounded-full bg-blue-500" id="latest-scan-dot"></span>
-            <span class="text-xs font-semibold text-blue-700">สแกนล่าสุด:</span>
+    <!-- 3. แสดงข้อมูลสแกนล่าสุด (แถบแจ้งสถานะกึ่งโปร่งใส) -->
+    <div id="latest-scan-banner" class="bg-indigo-50/80 border-b border-indigo-100 px-4 py-2.5 flex justify-between items-center flex-shrink-0 z-20 transition-all duration-150">
+        <div class="flex items-center gap-2">
+            <span class="w-2.5 h-2.5 rounded-full bg-indigo-500 shadow-sm" id="latest-scan-dot"></span>
+            <span class="text-xs font-bold text-indigo-800 tracking-wider">สแกนล่าสุด:</span>
         </div>
-        <span id="latest-code" class="text-sm font-bold text-blue-900 break-all select-all">ยังไม่มีข้อมูล (เริ่มสแกนได้เลย)</span>
+        <span id="latest-code" class="text-sm font-black text-indigo-900 break-all select-all font-mono">ยังไม่มีข้อมูล (เริ่มสแกนได้เลย)</span>
     </div>
 
-    <!-- 4. หน้าจอกล้องสแกน (สเกลความสูง 200px ช่วยประหยัดพื้นที่หน้าจอมือถือ) -->
-    <div id="camera-section" class="w-full bg-black flex-shrink-0 relative overflow-hidden z-10">
+    <!-- 4. หน้าจอกล้องสแกน (ปรับระดับขนาดได้เพื่อให้เห็นชัดเจนบนมือถือ) -->
+    <div id="camera-section" class="w-full bg-[#0b0f19] flex-shrink-0 relative overflow-hidden z-10 shadow-inner">
         <!-- ตัวแสดงกล้อง -->
         <div id="reader"></div>
         
+        <!-- Custom Scanning Overlay -->
+        <div id="custom-scan-overlay" class="absolute inset-0 pointer-events-none z-20 hidden">
+            <!-- Shaded box with outline -->
+            <div id="custom-scan-box" class="absolute rounded-2xl transition-all duration-300">
+                <!-- Corner brackets -->
+                <div class="absolute top-0 left-0 w-6 h-6 border-t-4 border-l-4 border-blue-400 rounded-tl-xl"></div>
+                <div class="absolute top-0 right-0 w-6 h-6 border-t-4 border-r-4 border-blue-400 rounded-tr-xl"></div>
+                <div class="absolute bottom-0 left-0 w-6 h-6 border-b-4 border-l-4 border-blue-400 rounded-bl-xl"></div>
+                <div class="absolute bottom-0 right-0 w-6 h-6 border-b-4 border-r-4 border-blue-400 rounded-br-xl"></div>
+                
+                <!-- Laser line -->
+                <div class="absolute left-0 right-0 h-0.5 bg-gradient-to-r from-transparent via-blue-400 to-transparent animate-laser-sweep"></div>
+                
+                <!-- Scanning indicator text -->
+                <div class="absolute -bottom-8 left-0 right-0 text-center text-xs text-blue-200 font-medium tracking-wide drop-shadow-md">
+                    วางบาร์โค้ด / QR Code ในกรอบนี้
+                </div>
+            </div>
+        </div>
+
         <!-- แถบแจ้งสถานะกล้อง -->
-        <div class="absolute top-2 left-2 bg-black/60 text-white text-xs px-2.5 py-1 rounded-full flex items-center gap-1.5 backdrop-blur-sm z-20">
+        <div class="absolute top-3 left-3 bg-black/60 text-white text-xs px-3 py-1.5 rounded-full flex items-center gap-1.5 backdrop-blur-md z-20 shadow border border-white/10">
             <span id="camera-dot" class="w-2.5 h-2.5 rounded-full bg-red-500"></span>
-            <span id="camera-status">ปิดอยู่</span>
+            <span id="camera-status" class="font-medium">ปิดอยู่</span>
+        </div>
+
+        <!-- ตัวเลือกปรับขนาดความสูงกล้อง -->
+        <div id="camera-height-control" class="absolute top-3 right-3 bg-black/60 text-white text-xs p-1.5 rounded-xl flex items-center gap-1 backdrop-blur-md z-20 shadow-lg border border-white/10 hidden">
+            <span class="px-1.5 text-[10px] text-gray-400 font-bold uppercase tracking-wider">ขนาดกล้อง</span>
+            <button onclick="setCameraHeight(280)" id="btn-h-280" class="px-2.5 py-1 rounded-lg hover:bg-white/10 transition text-[11px] font-semibold text-white/85">เล็ก</button>
+            <button onclick="setCameraHeight(365)" id="btn-h-365" class="px-2.5 py-1 rounded-lg bg-blue-600 text-white font-bold transition text-[11px]">กลาง</button>
+            <button onclick="setCameraHeight(450)" id="btn-h-450" class="px-2.5 py-1 rounded-lg hover:bg-white/10 transition text-[11px] font-semibold text-white/85">ใหญ่</button>
         </div>
     </div>
 
@@ -108,6 +182,8 @@
         let lastScannedText = "";
         let scanCooldown = false;
         let audioCtx = null;
+        let currentCameraHeight = 365; // ค่ามาตรฐานความสูง
+        let activeScanBox = { width: 0, height: 0 };
 
         window.onload = function() {
             const savedData = localStorage.getItem("scanned_trackings");
@@ -165,14 +241,72 @@
             }
         }
 
+        // ปรับขนาดความสูงกล้อง
+        function setCameraHeight(height) {
+            currentCameraHeight = height;
+            const cameraSection = document.getElementById("camera-section");
+            
+            if (html5QrCode && html5QrCode.isScanning) {
+                cameraSection.style.height = height + "px";
+                
+                // คำนวณขอบเขตกรอบสแกนใหม่เมื่อความสูงเปลี่ยนแปลง
+                const readerEl = document.getElementById("reader");
+                if (readerEl) {
+                    const width = readerEl.clientWidth;
+                    const containerHeight = readerEl.clientHeight;
+                    const boxWidth = Math.floor(Math.min(width * 0.85, 480));
+                    const boxHeight = Math.floor(Math.min(containerHeight * 0.65, 240));
+                    updateCustomOverlay(width, containerHeight, boxWidth, boxHeight);
+                }
+            }
+            
+            // อัปเดตปุ่มเลือกขนาดกล้อง
+            const heights = [280, 365, 450];
+            heights.forEach(h => {
+                const btn = document.getElementById(`btn-h-${h}`);
+                if (btn) {
+                    if (h === height) {
+                        btn.className = "px-2.5 py-1 rounded-lg bg-blue-600 text-white font-bold transition text-[11px] shadow-sm";
+                    } else {
+                        btn.className = "px-2.5 py-1 rounded-lg hover:bg-white/10 text-white/80 transition text-[11px] font-semibold text-white/85";
+                    }
+                }
+            });
+        }
+
         // ฟังก์ชันยืด/หด หน้าต่างกล้อง
         function toggleCameraUI(show) {
             const cameraSection = document.getElementById("camera-section");
+            const heightControl = document.getElementById("camera-height-control");
+            const overlay = document.getElementById("custom-scan-overlay");
+            
             if (show) {
-                cameraSection.style.height = "200px"; // ลดลงเหลือ 200px ช่วยประหยัดพื้นที่จอ
+                cameraSection.style.height = currentCameraHeight + "px";
+                heightControl.classList.remove("hidden");
             } else {
                 cameraSection.style.height = "0px";
+                heightControl.classList.add("hidden");
+                if (overlay) overlay.classList.add("hidden");
             }
+        }
+
+        // ฟังก์ชันอัปเดตตำแหน่งและขนาดของกรอบสแกนคัสตอม
+        function updateCustomOverlay(containerWidth, containerHeight, boxWidth, boxHeight) {
+            const overlay = document.getElementById("custom-scan-overlay");
+            const scanBox = document.getElementById("custom-scan-box");
+            
+            if (!overlay || !scanBox) return;
+            
+            overlay.classList.remove("hidden");
+            scanBox.style.width = boxWidth + "px";
+            scanBox.style.height = boxHeight + "px";
+            
+            // คำนวณให้อยู่จุดกึ่งกลางของช่องกล้อง
+            const top = (containerHeight - boxHeight) / 2;
+            const left = (containerWidth - boxWidth) / 2;
+            
+            scanBox.style.top = top + "px";
+            scanBox.style.left = left + "px";
         }
 
         // เริ่มเปิดกล้อง
@@ -192,10 +326,20 @@
                 html5QrCode = new Html5Qrcode("reader");
                 
                 const config = { 
-                    fps: 15, 
+                    fps: 20, // เพิ่มเฟรมเรตเพื่อให้สแกนได้เร็วขึ้นบนมือถือ
                     qrbox: function(width, height) {
-                        const size = Math.floor(Math.min(width, height) * 0.70);
-                        return { width: size, height: size };
+                        const boxWidth = Math.floor(Math.min(width * 0.85, 480));
+                        const boxHeight = Math.floor(Math.min(height * 0.65, 240));
+                        
+                        // บันทึกขนาดที่คำนวณได้
+                        activeScanBox = { width: boxWidth, height: boxHeight };
+                        
+                        // วาดกรอบสแกนทับซ้อนคัสตอม
+                        setTimeout(() => {
+                            updateCustomOverlay(width, height, boxWidth, boxHeight);
+                        }, 50);
+
+                        return { width: boxWidth, height: boxHeight };
                     }
                 };
 
@@ -206,7 +350,7 @@
                     onScanFailure
                 ).then(() => {
                     document.getElementById("camera-status").textContent = "พร้อมใช้งาน";
-                    document.getElementById("camera-dot").className = "w-2.5 h-2.5 rounded-full bg-green-500 animate-ping";
+                    document.getElementById("camera-dot").className = "w-2.5 h-2.5 rounded-full bg-green-500 animate-ping shadow-[0_0_8px_rgba(34,197,94,0.6)]";
                 }).catch(err => {
                     showStatusMessage("ไม่สามารถเปิดกล้องได้: โปรดตรวจสอบสิทธิ์กล้องหรือเปิดผ่านลิงก์ HTTPS", false);
                     stopScanner();
@@ -288,12 +432,12 @@
             latestCodeEl.textContent = code;
             
             // กะพริบแถบเป็นสีเขียวเพื่อส่งสัญญาณแจ้งการสแกนสำเร็จ
-            banner.className = "bg-green-100 border-b border-green-300 px-4 py-2 flex justify-between items-center flex-shrink-0 z-20 transition-all duration-150";
+            banner.className = "bg-green-100 border-b border-green-300 px-4 py-2.5 flex justify-between items-center flex-shrink-0 z-20 transition-all duration-150 shadow-sm";
             dot.className = "w-2.5 h-2.5 rounded-full bg-green-600 animate-ping";
 
             setTimeout(() => {
-                banner.className = "bg-blue-50 border-b border-blue-200 px-4 py-2 flex justify-between items-center flex-shrink-0 z-20 transition-all duration-150";
-                dot.className = "w-2 h-2 rounded-full bg-blue-500";
+                banner.className = "bg-indigo-50/80 border-b border-indigo-100 px-4 py-2.5 flex justify-between items-center flex-shrink-0 z-20 transition-all duration-150";
+                dot.className = "w-2.5 h-2.5 rounded-full bg-indigo-500 shadow-sm";
             }, 1000);
         }
 
