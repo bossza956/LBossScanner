@@ -203,7 +203,15 @@
                 if (savedData) {
                     const parsed = JSON.parse(savedData);
                     if (Array.isArray(parsed)) {
-                        scannedItems = parsed.filter(item => item && typeof item === 'object' && item.code);
+                        // รองรับการแปลงข้อมูลเก่าที่เป็น String ล้วนให้เป็นรูปแบบ Object ใหม่โดยประวัติไม่หาย
+                        scannedItems = parsed.map(item => {
+                            if (item && typeof item === 'object' && item.code) {
+                                return item;
+                            } else if (item && typeof item === 'string' && item.trim()) {
+                                return { code: item.trim(), time: "ก่อนหน้า" };
+                            }
+                            return null;
+                        }).filter(Boolean);
                     }
                 }
             } catch (e) {
